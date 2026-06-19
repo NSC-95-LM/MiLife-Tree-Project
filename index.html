@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MiLife Prototype | Pro Visualizer</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Dashboard Header -->
+        <header class="dashboard-header">
+            <div class="logo">🚀 MiLife <span>Prototype</span></div>
+        </header>
+
+        <!-- Search Bar Overlay -->
+        <div class="search-overlay">
+            <input type="text" id="globalSearch" placeholder="🔍 Search by name or ID (Press Enter to Zoom)..." onkeyup="handleGlobalSearch(event)">
+            <span id="searchResultCount"></span>
+        </div>
+
+        <main class="content-area">
+            <div class="tree-container">
+                <!-- Intelligence Legend -->
+                <div class="tree-legend">
+                    <div class="stat-item">
+                        <span class="stat-label">Levels Below:</span>
+                        <span id="levelsCount" class="stat-value">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Network Size:</span>
+                        <span id="nodesCount" class="stat-value">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Pending Positions:</span>
+                        <span id="mcCount" class="stat-value">0</span>
+                    </div>
+                </div>
+
+                <svg id="treeSvg"></svg>
+                <div class="tree-controls">
+                    <button onclick="resetTreeZoom()">📐 Reset View</button>
+                </div>
+                <div id="loadingOverlay" class="loading">Parsing Hierarchy...</div>
+            </div>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
