@@ -278,9 +278,17 @@ body {
 
 /* ================= RESPONSIVE MOBILE FACTOR ================= */
 @media (max-width: 768px) {
+  body {
+    height: auto;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
   .app-container {
     padding: 10px;
+    padding-bottom: 20vh; /* Space for browser bottom bar */
     gap: 10px;
+    height: auto;
   }
   
   .content-area {
@@ -330,7 +338,7 @@ body {
   .left-pane, .right-pane {
     width: 100%;
     min-width: unset;
-    height: 20vh;
+    height: 30vh;
     padding: 12px;
     border-radius: 16px;
     box-shadow: 0 4px 15px rgba(0,0,0,0.05);
@@ -381,7 +389,9 @@ body {
   /* Tree View */
   .tree-container {
     border-radius: 16px;
-    flex-grow: 1;
+    flex-grow: 0;
+    flex-shrink: 0;
+    height: 80vh;
   }
   
   .tree-controls {
