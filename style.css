@@ -51,10 +51,86 @@ body {
 #globalSearch::placeholder { color: #b2bec3; }
 
 /* Main Content Area */
-.content-area { flex-grow: 1; position: relative; overflow: hidden; }
+.content-area { 
+  flex-grow: 1; 
+  position: relative; 
+  overflow: hidden; 
+  display: flex; 
+  gap: 20px; 
+}
 
-/* Tree Visualizer Area */
+/* Side Panes Styling */
+.left-pane, .right-pane {
+  width: 15vw;
+  min-width: 240px;
+  background: var(--glass-white);
+  border-radius: 24px;
+  border: 1px solid var(--border-gold);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  box-shadow: 0 10px 30px rgba(197, 160, 89, 0.08);
+}
+
+.pane-header {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--accent-gold);
+  margin-bottom: 16px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.node-details {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.section-title {
+  font-size: 11px;
+  color: var(--accent-gold);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid rgba(197, 160, 89, 0.3);
+  padding-bottom: 4px;
+}
+
+.detail-item {
+  background: rgba(197, 160, 89, 0.05);
+  border: 1px solid var(--border-gold);
+  padding: 8px;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.detail-label {
+  font-size: 9px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
+}
+
+.detail-value {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-main);
+  word-break: break-word;
+}
+
+.tree-legend-side {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 .tree-container {
+  flex-grow: 1;
   background: #ffffff; border-radius: 24px;
   border: 2px solid var(--border-gold); height: 100%;
   position: relative; overflow: hidden;
@@ -67,12 +143,37 @@ body {
   to { opacity: 1; transform: scale(1); }
 }
 
+#treeSvg {
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  touch-action: none; /* Critical for D3 panning on mobile */
+}
+#treeSvg:active {
+  cursor: grabbing;
+}
+
 /* Capsule Styling */
-.node rect { 
+.node .node-rect { 
   rx: 20; ry: 20; /* Sleek capsule shape */
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   stroke-width: 3px;
   filter: drop-shadow(0 5px 12px rgba(0,0,0,0.12));
+}
+
+.node .search-halo {
+  transition: opacity 0.3s;
+}
+
+@keyframes red-shimmer {
+  0% { filter: drop-shadow(0 0 10px #ff4757) drop-shadow(0 0 20px #ff0000); stroke: #000; stroke-width: 2px; }
+  50% { filter: drop-shadow(0 0 20px #ff4757) drop-shadow(0 0 40px #ff0000); stroke: #000; stroke-width: 3px; }
+  100% { filter: drop-shadow(0 0 10px #ff4757) drop-shadow(0 0 20px #ff0000); stroke: #000; stroke-width: 2px; }
+}
+
+.search-highlight .search-halo {
+  opacity: 1 !important;
+  animation: red-shimmer 2s infinite ease-in-out;
 }
 
 .node text { 
@@ -91,7 +192,7 @@ body {
   0%, 100% { filter: drop-shadow(0 0 2px #ff4757); stroke-width: 3px; }
   50% { filter: drop-shadow(0 0 15px #ff4757); stroke-width: 6px; }
 }
-.dead-node rect { animation: pulse-dead 2s infinite; }
+.dead-node .node-rect { animation: pulse-dead 2s infinite; }
 
 .link { 
   fill: none; 
@@ -99,15 +200,63 @@ body {
   stroke-width: 3.5px; 
 }
 
-.tree-legend {
-  position: absolute; top: 20px; left: 20px; z-index: 5;
-  display: flex; gap: 24px; padding: 12px 24px;
-  background: rgba(255, 255, 255, 0.85); 
-  backdrop-filter: blur(10px); border-radius: 14px;
-  border: 1.5px solid var(--border-gold);
-  box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+/* ================= SEARCH FACTOR ================= */
+#searchButton {
+  background: var(--accent-aqua);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
 }
-.stat-item { display: flex; align-items: center; gap: 8px; }
+#searchButton:hover {
+  background: #1ca39c;
+}
+
+.results-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.result-item {
+  background: #ffffff;
+  border: 1px solid var(--border-gold);
+  padding: 14px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.result-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(197, 160, 89, 0.15);
+  border-color: var(--accent-aqua);
+}
+
+.result-item-name {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text-main);
+}
+
+.result-item-id {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.empty-state {
+  color: var(--text-muted);
+  font-size: 13px;
+  font-style: italic;
+  padding: 10px;
+  text-align: center;
+}
+
+.stat-item { display: flex; align-items: center; justify-content: space-between; }
 .stat-label { font-size: 13px; font-weight: 500; color: var(--text-muted); }
 .stat-value { font-size: 16px; font-weight: 700; color: var(--accent-gold); }
 
@@ -125,4 +274,150 @@ body {
   background: white; border: 2px solid var(--accent-gold);
   padding: 20px 40px; border-radius: 50px; color: var(--accent-gold);
   font-weight: 600; letter-spacing: 1px;
+}
+
+/* ================= RESPONSIVE MOBILE FACTOR ================= */
+@media (max-width: 768px) {
+  .app-container {
+    padding: 10px;
+    gap: 10px;
+  }
+  
+  .content-area {
+    flex-direction: column;
+  }
+  
+  /* Header */
+  .dashboard-header {
+    padding: 10px;
+    border-radius: 12px;
+    justify-content: center;
+  }
+  .logo {
+    font-size: 11px; /* Half of original 22px */
+    text-align: center;
+  }
+
+  /* Search Area */
+  .search-overlay {
+    flex-wrap: wrap;
+    padding: 8px;
+    min-height: 10vh;
+    gap: 0;
+  }
+  
+  #globalSearch {
+    width: 78%;
+    margin-right: 2%;
+    font-size: 13px;
+    padding: 8px 0;
+  }
+  
+  #searchButton {
+    width: 20%;
+    padding: 8px 4px;
+    font-size: 12px;
+  }
+
+  #searchResultCount {
+    width: 100%;
+    text-align: center;
+    font-size: 8px; /* Approx half of regular size */
+    margin-top: 4px;
+  }
+
+  /* Side Panes */
+  .left-pane, .right-pane {
+    width: 100%;
+    min-width: unset;
+    height: 20vh;
+    padding: 12px;
+    border-radius: 16px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+  }
+  
+  .pane-header {
+    font-size: 11px;
+    margin-bottom: 6px;
+    margin-top: 4px !important;
+    text-align: center;
+  }
+  
+  .tree-legend-side {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    justify-content: space-between;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  
+  .stat-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background: rgba(197, 160, 89, 0.1);
+    padding: 6px 2px;
+    border-radius: 6px;
+  }
+  .stat-label { font-size: 8px; text-align: center; line-height: 1.2; }
+  .stat-value { font-size: 12px; margin-top: 2px; }
+
+  .results-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  
+  .result-item {
+    padding: 8px;
+  }
+  
+  .result-item-name { font-size: 11px; }
+  .result-item-id { font-size: 9px; }
+
+  /* Tree View */
+  .tree-container {
+    border-radius: 16px;
+    flex-grow: 1;
+  }
+  
+  .tree-controls {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    z-index: 10;
+  }
+  
+  .tree-controls button {
+    padding: 8px 16px;
+    font-size: 12px;
+  }
+
+  /* Right Pane mobile scaling */
+  .right-pane .section-title {
+    font-size: 9px;
+    margin-bottom: 4px;
+    padding-bottom: 2px;
+  }
+  
+  .right-pane .node-details {
+    gap: 4px;
+  }
+  
+  .right-pane .detail-item {
+    padding: 4px 6px;
+    border-radius: 6px;
+  }
+  
+  .right-pane .detail-label {
+    font-size: 7px;
+    margin-bottom: 1px;
+  }
+  
+  .right-pane .detail-value {
+    font-size: 9px;
+  }
 }
