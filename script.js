@@ -245,8 +245,20 @@ function renderTree() {
             toggleNode(d);
         });
 
+    // Highlight Halo (Hidden by default, shown when searched)
+    nodeEnter.append("circle")
+        .attr("class", "search-halo")
+        .attr("cx", 0).attr("cy", 0)
+        .attr("r", 110)
+        .attr("fill", "none")
+        .attr("stroke", "black")
+        .attr("stroke-width", "2")
+        .style("opacity", 0)
+        .style("pointer-events", "none");
+
     // The Capsule (Rectangle)
     nodeEnter.append("rect")
+        .attr("class", "node-rect")
         .attr("x", -85).attr("y", -35)
         .attr("width", 170).attr("height", 70)
         .attr("fill", d => {
@@ -304,12 +316,18 @@ function renderTree() {
 function toggleNode(d) {
     if (d.data.isMC) return; // Ignore missing children clicks
     
+    // Clear search highlight
+    d3.selectAll(".node").classed("search-highlight", false);
+
     if (spotlightNodeId === d.data.userId) {
         spotlightNodeId = null;
         applySpotlight(null);
+        clearRightPane();
     } else {
         spotlightNodeId = d.data.userId;
         applySpotlight(d);
+        g.selectAll(".node").classed("search-highlight", n => n.data.userId === spotlightNodeId);
+        populateRightPane(d);
     }
 }
 
@@ -353,54 +371,178 @@ function applySpotlight(clickedNode) {
         });
 }
 
-// 6. Search & Finder
+// ================= SEARCH FACTOR =================
+
+function executeSearch() {
+    const query = document.getElementById('globalSearch').value.toLowerCase().trim();
+    performSearch(query, true);
+}
+
 function handleGlobalSearch(e) {
     const query = e.target.value.toLowerCase().trim();
-    const matchCountSpan = document.getElementById('searchResultCount');
-    
-    if (query.length > 1) {
-        // Find all matching nodes
-        let matchCount = 0;
-        let firstMatch = null;
-
-        g.selectAll(".node").each(function(d) {
-            const name = (d.data.codeName || '').toLowerCase();
-            const id = (d.data.userId || '').toLowerCase();
-            if ((name.includes(query) || id.includes(query)) && !d.data.isMC) {
-                matchCount++;
-                if (!firstMatch) firstMatch = d;
-            }
-        });
-
-        matchCountSpan.textContent = matchCount > 0
-            ? `✨ ${matchCount} match${matchCount > 1 ? 'es' : ''} found`
-            : '❌ No matches';
-
-        if (firstMatch) {
-            // Apply spotlight to the first matched node
-            spotlightNodeId = firstMatch.data.userId;
-            applySpotlight(firstMatch);
-
-            // Auto-zoom to the first match on Enter
-            if (e.key === 'Enter') {
-                zoomToNode(firstMatch);
-            }
-        } else {
-            // No match found — reset spotlight
-            spotlightNodeId = null;
-            applySpotlight(null);
-        }
-
+    if (e.key === 'Enter') {
+        performSearch(query, true);
     } else {
-        // Search cleared — reset spotlight and stroke styles
+        performSearch(query, false);
+    }
+}
+
+function performSearch(query, isExplicit) {
+    const matchCountSpan = document.getElementById('searchResultCount');
+    const resultsList = document.getElementById('searchResultsList');
+    
+    if (query.length < 2) {
         matchCountSpan.textContent = '';
+        if(resultsList) resultsList.innerHTML = '<div class="empty-state">No active search</div>';
         spotlightNodeId = null;
         applySpotlight(null);
-
-        // Restore original stroke styles
-        g.selectAll(".node rect")
+        g.selectAll(".node").classed("search-highlight", false);
+        clearRightPane();
+        g.selectAll(".node .node-rect")
             .attr("stroke", d => d.data.isMC ? "transparent" : getStatusColor(d.data.status))
             .attr("stroke-width", 3);
+        return;
+    }
+
+    let matches = [];
+    g.selectAll(".node").each(function(d) {
+        const name = (d.data.codeName || '').toLowerCase();
+        const id = (d.data.userId || '').toLowerCase();
+        if ((name.includes(query) || id.includes(query)) && !d.data.isMC) {
+            matches.push(d);
+        }
+    });
+
+    matchCountSpan.textContent = matches.length > 0
+        ? `✨ ${matches.length} match${matches.length > 1 ? 'es' : ''} found`
+        : '❌ No matches';
+
+    if (matches.length > 0) {
+        if(resultsList) {
+            resultsList.innerHTML = '';
+            matches.forEach(match => {
+                const item = document.createElement('div');
+                item.className = 'result-item';
+                item.innerHTML = `
+                    <div class="result-item-name">${match.data.codeName || 'Unknown'}</div>
+                    <div class="result-item-id">ID: ${match.data.userId}</div>
+                `;
+                item.onclick = () => selectSearchResult(match.data.userId);
+                resultsList.appendChild(item);
+            });
+        }
+
+        const firstMatch = matches[0];
+        spotlightNodeId = firstMatch.data.userId;
+        applySpotlight(firstMatch);
+        g.selectAll(".node").classed("search-highlight", d => d.data.userId === spotlightNodeId);
+        populateRightPane(firstMatch);
+
+        if (isExplicit) {
+            zoomToNode(firstMatch);
+        }
+    } else {
+        if(resultsList) resultsList.innerHTML = '<div class="empty-state">No matches found</div>';
+        spotlightNodeId = null;
+        applySpotlight(null);
+        g.selectAll(".node").classed("search-highlight", false);
+        clearRightPane();
+    }
+}
+
+function populateRightPane(node) {
+    const detailsContainer = document.getElementById('nodeDetailsContent');
+    if (!detailsContainer || !node) return;
+
+    const userId = node.data.userId;
+    const data = rawData?.data_dump?.[userId] || {};
+
+    const level = node.depth;
+    const sponsorId = node.data.sponsorId || 'None';
+    const sponsorName = sponsorId !== 'None' && rawData?.data_dump?.[sponsorId]?.documentName ? rawData.data_dump[sponsorId].documentName : 'N/A';
+    const branch = node.data.position || 'Root';
+    
+    const descendants = node.descendants();
+    const maxDepth = d3.max(descendants, d => d.depth);
+    const levelsBelow = maxDepth - level;
+    
+    const realChildren = node.children ? node.children.filter(c => !c.data.isMC).length : 0;
+
+    const nodeInfoProps = {
+        "Name": data.documentName || node.data.codeName || 'Unknown',
+        "ID": userId,
+        "Status": data.status || node.data.status || 'safe',
+        "Color": data.color || node.data.color || 'green',
+        "Children": realChildren
+    };
+
+    const sponsorInfoProps = {
+        "Sponsor Name": sponsorName,
+        "Sponsor ID": sponsorId,
+        "Branch": branch,
+        "Tree Level": level,
+        "Levels Below": levelsBelow
+    };
+
+    let html = `
+        <div class="info-section">
+            <div class="section-title">Node Info</div>
+            <div class="node-details">
+    `;
+    for (const [key, value] of Object.entries(nodeInfoProps)) {
+        html += `
+                <div class="detail-item">
+                    <div class="detail-label">${key}</div>
+                    <div class="detail-value">${value}</div>
+                </div>
+        `;
+    }
+    
+    html += `
+            </div>
+        </div>
+        <div class="info-section" style="margin-top: 15px;">
+            <div class="section-title">Sponsor Info & Stats</div>
+            <div class="node-details">
+    `;
+    
+    for (const [key, value] of Object.entries(sponsorInfoProps)) {
+        html += `
+                <div class="detail-item">
+                    <div class="detail-label">${key}</div>
+                    <div class="detail-value">${value}</div>
+                </div>
+        `;
+    }
+
+    html += `
+            </div>
+        </div>
+    `;
+    detailsContainer.innerHTML = html;
+}
+
+function clearRightPane() {
+    const detailsContainer = document.getElementById('nodeDetailsContent');
+    if (detailsContainer) {
+        detailsContainer.innerHTML = '<div class="empty-state">Click a node to view full details</div>';
+    }
+}
+
+function selectSearchResult(userId) {
+    let targetNode = null;
+    g.selectAll(".node").each(function(d) {
+        if (d.data.userId === userId) {
+            targetNode = d;
+        }
+    });
+
+    if (targetNode) {
+        spotlightNodeId = userId;
+        applySpotlight(targetNode);
+        g.selectAll(".node").classed("search-highlight", d => d.data.userId === spotlightNodeId);
+        zoomToNode(targetNode);
+        populateRightPane(targetNode);
     }
 }
 
@@ -416,11 +558,21 @@ function zoomToNode(d) {
     const w = container.clientWidth;
     const h = container.clientHeight;
     
+    let targetScale = h / 1400;
+    
+    // Adjust clamp for mobile devices so nodes aren't microscopically tiny
+    if (window.innerWidth <= 768) {
+        targetScale = Math.max(0.4, Math.min(targetScale, 1.2));
+    } else {
+        targetScale = Math.max(0.2, Math.min(targetScale, 1.2));
+    }
+    
     svg.transition().duration(750).call(
         zoom.transform,
-        d3.zoomIdentity.translate(w/2 - d.x, h/3 - d.y).scale(1)
+        d3.zoomIdentity.translate(w/2 - d.x * targetScale, h/2 - d.y * targetScale).scale(targetScale)
     );
 }
+// =================================================
 
 function resetTreeZoom() {
     const container = document.querySelector('.tree-container');
