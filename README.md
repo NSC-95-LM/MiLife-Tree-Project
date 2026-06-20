@@ -8,12 +8,12 @@ An advanced, interactive hierarchy visualization engine built using **HTML5**, *
 * **Smart "Missing Children" Engine**: Automatically calculates empty binary branches (Left/Right) in the network and renders translucent placeholder blocks ("MC") to indicate where the network needs to grow.
 * **Advanced Global Search**: Instantly filter and find users by their `codeName` or `userId`. Provides a dedicated "Results Tray" showing matches.
 * **Spotlight & Rail Highlighting**: Activating any node (via click or search) dims out the irrelevant portions of the tree and instantly illuminates the direct hierarchy "rail" (ancestors and descendants). The active node receives a highly visible, shimmering red ring.
-* **Real-time Data Pane**: Clicking a node fires up the "Right Pane," a dual-section interface that calculates and displays:
-  * **Node Info**: Name, ID, Color, Status, and Active Children.
-  * **Sponsor Info & Stats**: Sponsor Name/ID, Branch side, absolute Tree Level, and the exact number of Levels Below the current node.
+* **Real-time Data Pane (2-Column Grid)**: Clicking a node fires up the "Right Pane," which dynamically queries the dataset and splits into two distinct, highly-presentable sections:
+  * **Node Info**: Highlights Name, ID, Color, Status, and Active Children.
+  * **Sponsor Info & Stats**: Calculates Sponsor Name/ID, Branch side, absolute Tree Level, and the exact number of Levels Below the current node.
 * **Network Statistics**: The Left Pane acts as a dashboard calculating real-time network intelligence, including Max Depth, Total Network Size (excluding missing branches), and Total Pending missing children.
-* **Fully Responsive**: Carefully engineered CSS automatically scales the 3-pane layout into a beautiful, stacked mobile layout on screens `<768px`, ensuring typography remains legible and touch-interactions remain smooth.
-* **Optimized Mobile Panning**: Overrides native browser swipe gestures to ensure smooth, responsive 1-finger panning and 2-finger zooming on touchscreen devices.
+* **Fully Responsive & Scrollable Mobile UI**: Carefully engineered CSS automatically reconfigures the 3-pane layout for screens `<768px`. It unlocks the rigid desktop view to create a fully scrollable dashboard, utilizing explicit heights (30vh panes, 80vh tree) and implementing a clever 20vh "ghost padding" at the bottom to natively bypass mobile browser taskbar interference.
+* **Optimized Mobile Panning**: Overrides native browser swipe gestures with `touch-action: none` on the SVG to ensure flawless 1-finger panning and 2-finger zooming on touchscreen devices.
 
 ---
 
