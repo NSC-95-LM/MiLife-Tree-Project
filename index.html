@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,6 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <script src="https://d3js.org/d3.v7.min.js"></script>
 </head>
+
 <body>
     <div class="app-container">
         <!-- Dashboard Header -->
@@ -17,14 +19,18 @@
 
         <!-- Search Bar Overlay -->
         <div class="search-overlay">
-            <input type="text" id="globalSearch" placeholder="🔍 Search by name or ID (Press Enter to Zoom)..." onkeyup="handleGlobalSearch(event)">
+            <input type="text" id="globalSearch" placeholder="🔍 Search by name or ID (Press Enter to Zoom)..."
+                onkeyup="handleGlobalSearch(event)">
+            <button id="searchButton" onclick="executeSearch()">Search</button>
             <span id="searchResultCount"></span>
         </div>
 
         <main class="content-area">
-            <div class="tree-container">
-                <!-- Intelligence Legend -->
-                <div class="tree-legend">
+            <!-- Left Pane: Stats & Search Results -->
+            <aside class="left-pane" id="leftPane">
+                <div class="pane-header">Network Stats</div>
+                <!-- Intelligence Legend moved here -->
+                <div class="tree-legend-side">
                     <div class="stat-item">
                         <span class="stat-label">Levels Below:</span>
                         <span id="levelsCount" class="stat-value">0</span>
@@ -34,10 +40,21 @@
                         <span id="nodesCount" class="stat-value">0</span>
                     </div>
                     <div class="stat-item">
-                        <span class="stat-label">Pending Positions:</span>
+                        <span class="stat-label">Pending:</span>
                         <span id="mcCount" class="stat-value">0</span>
                     </div>
                 </div>
+
+                <div class="search-results-section">
+                    <div class="pane-header" style="margin-top:20px;">Search Results</div>
+                    <div id="searchResultsList" class="results-list">
+                        <div class="empty-state">No active search</div>
+                    </div>
+                </div>
+            </aside>
+
+            <div class="tree-container">
+                <!-- Map Area -->
 
                 <svg id="treeSvg"></svg>
                 <div class="tree-controls">
@@ -45,9 +62,18 @@
                 </div>
                 <div id="loadingOverlay" class="loading">Parsing Hierarchy...</div>
             </div>
+
+            <!-- Right Pane: Node Info -->
+            <aside class="right-pane" id="rightPane">
+                <div class="pane-header">Selected Node</div>
+                <div id="nodeDetailsContent">
+                    <div class="empty-state">Click a node to view full details</div>
+                </div>
+            </aside>
         </main>
     </div>
 
     <script src="script.js"></script>
 </body>
+
 </html>
