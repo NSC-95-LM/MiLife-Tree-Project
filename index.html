@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
 
 <body>
@@ -15,6 +16,7 @@
         <!-- Dashboard Header -->
         <header class="dashboard-header">
             <div class="logo">🚀 MiLife <span>Prototype</span></div>
+            <button id="themeToggle" class="theme-toggle" onclick="toggleTheme()">🌙</button>
         </header>
 
         <!-- Search Bar Overlay -->
@@ -53,11 +55,18 @@
                 </div>
             </aside>
 
-            <div class="tree-container">
+            <div class="tree-container" id="captureArea">
                 <!-- Map Area -->
 
                 <svg id="treeSvg"></svg>
+                
+                <!-- Minimap Container -->
+                <div class="minimap-container" id="minimapContainer">
+                    <svg id="minimapSvg"></svg>
+                </div>
+
                 <div class="tree-controls">
+                    <button onclick="exportToImage()">📸 Export</button>
                     <button onclick="resetTreeZoom()">📐 Reset View</button>
                 </div>
                 <div id="loadingOverlay" class="loading">Parsing Hierarchy...</div>
