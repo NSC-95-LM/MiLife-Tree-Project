@@ -4,6 +4,9 @@ let rawData = { data_dump: {}, connections: [] };
 let treeData = null;
 let svg, g, zoom, treemap;
 let spotlightNodeId = null;
+let globalNodesMap = {};
+let currentRootId = null;
+let currentRootNode = null;
 
 // 1. Initial Load
 document.addEventListener('DOMContentLoaded', () => {
@@ -97,8 +100,16 @@ function buildTree() {
         }
     });
 
-    treeData = nodesMap[primaryRootId];
+    Object.values(nodesMap).forEach(node => {
+        node._originalChildren = [...node.children];
+    });
 
+    globalNodesMap = nodesMap;
+    if (!currentRootId) {
+        currentRootId = primaryRootId;
+    }
+
+    treeData = nodesMap[primaryRootId];
     sortHierarchy(treeData);
 }
 
@@ -212,15 +223,33 @@ function renderTree() {
 
     g = svg.append("g");
 
-    zoom = d3.zoom().scaleExtent([0.1, 4]).on("zoom", (e) => g.attr("transform", e.transform));
+    zoom = d3.zoom().scaleExtent([0.1, 4]).on("zoom", (e) => {
+        g.attr("transform", e.transform);
+        updateMinimapViewport();
+    });
     svg.call(zoom);
 
     treemap = d3.tree().nodeSize([240, 280]); 
-    const root = d3.hierarchy(treeData);
+    // Use currentRootId instead of treeData if available
+    const rootData = globalNodesMap[currentRootId] || treeData;
+    const root = d3.hierarchy(rootData);
     const nodes = treemap(root);
 
     // Update Intelligence Legend Stats
     updateTreeStats(root);
+
+    // Prepare Spotlight state if exists
+    let railSet = new Set();
+    if (spotlightNodeId) {
+        const activeNode = root.descendants().find(n => n.data.userId === spotlightNodeId);
+        if (activeNode) {
+            const ancestors = activeNode.ancestors();
+            const descendants = activeNode.descendants();
+            railSet = new Set([...ancestors, ...descendants].map(n => n.data.userId));
+        } else {
+            spotlightNodeId = null;
+        }
+    }
 
     // Links (Blue for Left, Purple for Right)
     g.selectAll(".link")
@@ -232,7 +261,17 @@ function renderTree() {
             return posInfo.side === 'left' ? "#4facfe" : "#a06cfc";
         })
         .attr("stroke-dasharray", d => d.target.data.isMC ? "5,5" : "0")
-        .attr("d", d3.linkVertical().x(d => d.x).y(d => d.y));
+        .attr("d", d3.linkVertical().x(d => d.x).y(d => d.y))
+        .style("opacity", 0)
+        .transition()
+        .duration(500)
+        .delay(d => d.target.depth * 500)
+        .style("opacity", d => {
+            if (!spotlightNodeId) return 0.6;
+            const isSourceInRail = railSet.has(d.source.data.userId);
+            const isTargetInRail = railSet.has(d.target.data.userId);
+            return (isSourceInRail && isTargetInRail) ? 0.9 : 0.05;
+        });
 
     // Capsule Nodes
     const nodeEnter = g.selectAll(".node")
@@ -301,15 +340,20 @@ function renderTree() {
         }
     });
 
-    // Restore spotlight opacities if state exists
-    if (spotlightNodeId) {
-        const activeNode = root.descendants().find(n => n.data.userId === spotlightNodeId);
-        if (activeNode) applySpotlight(activeNode);
-    } else {
-        applySpotlight(null);
-    }
+    // Fade in nodes by level
+    nodeEnter.style("opacity", 0)
+        .transition()
+        .duration(500)
+        .delay(d => d.depth * 500)
+        .style("opacity", d => {
+            if (!spotlightNodeId) return 1.0;
+            if (d.data.userId === spotlightNodeId) return 1.0;
+            return railSet.has(d.data.userId) ? 0.7 : 0.15;
+        });
 
+    currentRootNode = root;
     resetTreeZoom();
+    updateMinimap();
 }
 
 // 5. Spotlight Interactions
@@ -518,6 +562,14 @@ function populateRightPane(node) {
     html += `
             </div>
         </div>
+        <div class="info-section" style="margin-top: 15px;">
+            <div class="section-title">Actions</div>
+            <div class="pane-action-btn" onclick="isolateRoot('${userId}')">Set as Root View</div>
+            <div class="pane-action-btn" onclick="hideChildren('${userId}')">Hide All Children</div>
+            <div class="pane-action-btn" onclick="hideBranch('${userId}', 'left')">Hide Left Branch</div>
+            <div class="pane-action-btn" onclick="hideBranch('${userId}', 'right')">Hide Right Branch</div>
+            <div class="pane-action-btn" onclick="resetTreeState()">Reset Full Tree</div>
+        </div>
     `;
     detailsContainer.innerHTML = html;
 }
@@ -601,4 +653,216 @@ function updateTreeStats(root) {
     document.getElementById('mcCount').textContent = mcCount || 0;
 }
 
+// ================= NEW FEATURES (Dark Mode, Export, Minimap, Tree Actions) =================
 
+function toggleTheme() {
+    document.body.classList.toggle('dark-mode');
+    const btn = document.getElementById('themeToggle');
+    if (document.body.classList.contains('dark-mode')) {
+        btn.textContent = '☀️';
+    } else {
+        btn.textContent = '🌙';
+    }
+}
+
+async function exportToImage() {
+    const svgEl = document.getElementById('treeSvg');
+    const oldTransform = d3.select("#treeSvg g").attr("transform");
+    const oldWidth = svgEl.getAttribute("width");
+    const oldHeight = svgEl.getAttribute("height");
+    
+    // Get true unscaled bounding box of the tree
+    const bbox = g.node().getBBox();
+    const pad = 100;
+    const w = bbox.width + pad * 2;
+    const h = bbox.height + pad * 2;
+    
+    // Temporarily resize SVG and adjust transform to 1:1 scale
+    svgEl.setAttribute("width", w);
+    svgEl.setAttribute("height", h);
+    const tx = -bbox.x + pad;
+    const ty = -bbox.y + pad;
+    d3.select("#treeSvg g").attr("transform", `translate(${tx},${ty}) scale(1)`);
+    
+    // Serialize SVG natively (bypasses all html2canvas bugs & animation resets)
+    const serializer = new XMLSerializer();
+    let svgString = serializer.serializeToString(svgEl);
+    
+    // Restore SVG to original state immediately
+    d3.select("#treeSvg g").attr("transform", oldTransform);
+    svgEl.setAttribute("width", oldWidth);
+    svgEl.setAttribute("height", oldHeight);
+    
+    // Inject styles missing from native SVG serialization
+    const styleString = `
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap');
+        .node text { font-family: 'Outfit', sans-serif; fill: #ffffff; }
+        .name-label { font-size: 13px; font-weight: 700; }
+        .id-label { font-size: 10px; font-weight: 400; opacity: 0.8; }
+        .status-symbol { font-size: 14px; font-weight: 900; }
+        .link { fill: none; stroke-opacity: 0.6; stroke-width: 3.5px; }
+        .node-rect { stroke-width: 3px; }
+        .search-halo { display: none; }
+    `;
+    
+    if (!svgString.includes('xmlns="http://www.w3.org/2000/svg"')) {
+        svgString = svgString.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
+    }
+    svgString = svgString.replace('>', `><style>${styleString}</style>`);
+    
+    // Draw to Canvas
+    const canvas = document.createElement("canvas");
+    const scale = 2; // 2x retina quality
+    canvas.width = w * scale;
+    canvas.height = h * scale;
+    const ctx = canvas.getContext("2d");
+    
+    const bgColor = getComputedStyle(document.body).getPropertyValue('--card-bg').trim();
+    ctx.fillStyle = bgColor;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    const img = new Image();
+    const blob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    
+    await new Promise((resolve, reject) => {
+        img.onload = function() {
+            ctx.drawImage(img, 0, 0, w, h, 0, 0, canvas.width, canvas.height);
+            URL.revokeObjectURL(url);
+            
+            const link = document.createElement("a");
+            link.download = "milife-network-hq.png";
+            link.href = canvas.toDataURL("image/png");
+            link.click();
+            resolve();
+        };
+        img.onerror = function(err) {
+            console.error(err);
+            alert("Failed to render native SVG. Please try again.");
+            reject(err);
+        };
+        img.src = url;
+    });
+}
+
+function updateMinimap() {
+    const minimapContainer = document.getElementById('minimapContainer');
+    if (!minimapContainer) return;
+    const mw = minimapContainer.clientWidth;
+    const mh = minimapContainer.clientHeight;
+    
+    const mSvg = d3.select("#minimapSvg").attr("width", mw).attr("height", mh);
+    mSvg.selectAll("*").remove();
+    
+    if (currentRootNode) {
+        const nodes = currentRootNode.descendants();
+        const links = currentRootNode.links();
+        
+        const xMin = d3.min(nodes, d => d.x) - 100;
+        const xMax = d3.max(nodes, d => d.x) + 100;
+        const yMin = d3.min(nodes, d => d.y) - 50;
+        const yMax = d3.max(nodes, d => d.y) + 50;
+        
+        const treeW = xMax - xMin;
+        const treeH = yMax - yMin;
+        
+        const scale = Math.min(mw / treeW, mh / treeH) * 0.9;
+        const tx = (mw - treeW * scale) / 2 - xMin * scale;
+        const ty = (mh - treeH * scale) / 2 - yMin * scale;
+        
+        const mg = mSvg.append("g").attr("transform", `translate(${tx},${ty}) scale(${scale})`);
+        
+        mg.selectAll(".m-link")
+            .data(links)
+            .enter().append("path")
+            .attr("stroke", "#c5a059")
+            .attr("stroke-opacity", 0.4)
+            .attr("stroke-width", 15)
+            .attr("fill", "none")
+            .attr("d", d3.linkVertical().x(d => d.x).y(d => d.y));
+            
+        mg.selectAll(".m-node")
+            .data(nodes)
+            .enter().append("rect")
+            .attr("x", -85).attr("y", -35)
+            .attr("width", 170).attr("height", 70)
+            .attr("fill", d => d.data.isMC ? "#e2e8f0" : (CONFIG.colors[d.data.color?.toLowerCase()] || '#2d3436'));
+        
+        mSvg.append("rect")
+            .attr("class", "minimap-viewport")
+            .attr("id", "minimapViewport");
+            
+        updateMinimapViewport();
+    }
+}
+
+function updateMinimapViewport() {
+    const mSvg = d3.select("#minimapSvg");
+    const viewport = mSvg.select("#minimapViewport");
+    if (viewport.empty() || !currentRootNode) return;
+    
+    const nodes = currentRootNode.descendants();
+    const xMin = d3.min(nodes, d => d.x) - 100;
+    const xMax = d3.max(nodes, d => d.x) + 100;
+    const yMin = d3.min(nodes, d => d.y) - 50;
+    const yMax = d3.max(nodes, d => d.y) + 50;
+    
+    const treeW = xMax - xMin;
+    const treeH = yMax - yMin;
+    
+    const container = document.getElementById('minimapContainer');
+    if(!container) return;
+    const mw = container.clientWidth;
+    const mh = container.clientHeight;
+    const scale = Math.min(mw / treeW, mh / treeH) * 0.9;
+    const tx = (mw - treeW * scale) / 2 - xMin * scale;
+    const ty = (mh - treeH * scale) / 2 - yMin * scale;
+    
+    const t = d3.zoomTransform(svg.node());
+    const treeContainer = document.querySelector('.tree-container');
+    const cw = treeContainer.clientWidth;
+    const ch = treeContainer.clientHeight;
+    
+    const vw = cw / t.k;
+    const vh = ch / t.k;
+    const vx = -t.x / t.k;
+    const vy = -t.y / t.k;
+    
+    viewport
+        .attr("x", tx + vx * scale)
+        .attr("y", ty + vy * scale)
+        .attr("width", vw * scale)
+        .attr("height", vh * scale);
+}
+
+// Tree Actions
+function isolateRoot(userId) {
+    currentRootId = userId;
+    renderTree();
+}
+
+function hideChildren(userId) {
+    if (globalNodesMap[userId]) {
+        globalNodesMap[userId].children = [];
+        renderTree();
+    }
+}
+
+function hideBranch(userId, side) {
+    if (globalNodesMap[userId]) {
+        globalNodesMap[userId].children = globalNodesMap[userId]._originalChildren.filter(c => {
+            const posInfo = parsePosition(c.position);
+            return posInfo.side !== side;
+        });
+        renderTree();
+    }
+}
+
+function resetTreeState() {
+    Object.values(globalNodesMap).forEach(node => {
+        node.children = [...(node._originalChildren || [])];
+    });
+    const primaryRootConn = rawData.connections.find(conn => !conn.sponsorId) || rawData.connections[0];
+    currentRootId = primaryRootConn ? primaryRootConn.userId : null;
+    renderTree();
+}
